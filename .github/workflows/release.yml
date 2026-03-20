@@ -63,12 +63,7 @@ jobs:
             [ -f "$wasm" ] || continue
             NAME=$(basename "$wasm" .wasm)
             BYTES=$(wc -c < "$wasm" | xargs)
-            if [ "$BYTES" -gt 1024 ]; then
-              KB=$(( BYTES / 1024 ))
-              SIZE="${KB} KB"
-            else
-              SIZE="${BYTES} B"
-            fi
+            SIZE=$(awk "BEGIN {printf \"%.2f KB\", $BYTES / 1024}")
             WASM_TABLE="${WASM_TABLE}| ${NAME} | ${SIZE} |
           "
           done

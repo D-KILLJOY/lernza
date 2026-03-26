@@ -9,6 +9,7 @@ import { Profile } from "@/pages/profile"
 import { NotFound } from "@/pages/not-found"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { CreateQuest } from "@/pages/create-quest"
+import { QuestsPage } from "@/pages/questpage"
 
 // ─── Theme Context ─────────────────────────────────────────────────────────────
 
@@ -40,7 +41,7 @@ function getInitialTheme(): Theme {
 
 // ─── Routing ───────────────────────────────────────────────────────────────────
 
-const VALID_PAGES = ["landing", "dashboard", "profile", "create-quest"] as const
+const VALID_PAGES = ["landing", "dashboard", "profile", "create-quest", "questpage"] as const
 type Page = (typeof VALID_PAGES)[number] | "workspace" | "404"
 
 function pathToPage(pathname: string): { page: Page; workspaceId: number | null } {
@@ -49,6 +50,7 @@ function pathToPage(pathname: string): { page: Page; workspaceId: number | null 
   if (clean === "/dashboard") return { page: "dashboard", workspaceId: null }
   if (clean === "/profile") return { page: "profile", workspaceId: null }
   if (clean === "/create-quest") return { page: "create-quest", workspaceId: null }
+  if (clean === "/questpage") return { page: "questpage", workspaceId: null }
 
   const wsMatch = clean.match(/^\/quest\/(\d+)$/)
   if (wsMatch) return { page: "workspace", workspaceId: Number(wsMatch[1]) }
@@ -78,7 +80,7 @@ function App() {
   }, [theme])
 
   const toggleTheme = useCallback(() => {
-    setTheme((t) => (t === "light" ? "dark" : "light"))
+    setTheme(t => (t === "light" ? "dark" : "light"))
   }, [])
 
   useEffect(() => {
@@ -87,22 +89,20 @@ function App() {
     return () => window.removeEventListener("popstate", onPopState)
   }, [])
 
-    const handleNavigate = useCallback((p: string) => {
-        const page = (VALID_PAGES as readonly string[]).includes(p)
-            ? (p as Page)
-            : "404";
-        const path = pageToPath(page, null);
-        window.history.pushState(null, "", path);
-        setState({ page, workspaceId: null });
-        window.scrollTo({ top: 0, behavior: "smooth" });
-    }, []);
+  const handleNavigate = useCallback((p: string) => {
+    const page = (VALID_PAGES as readonly string[]).includes(p) ? (p as Page) : "404"
+    const path = pageToPath(page, null)
+    window.history.pushState(null, "", path)
+    setState({ page, workspaceId: null })
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }, [])
 
-    const handleSelectWorkspace = useCallback((id: number) => {
-        const path = pageToPath("workspace", id);
-        window.history.pushState(null, "", path);
-        setState({ page: "workspace", workspaceId: id });
-        window.scrollTo({ top: 0, behavior: "smooth" });
-    }, []);
+  const handleSelectWorkspace = useCallback((id: number) => {
+    const path = pageToPath("workspace", id)
+    window.history.pushState(null, "", path)
+    setState({ page: "workspace", workspaceId: id })
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }, [])
 
   const renderPage = () => {
     if (state.page === "workspace" && state.workspaceId !== null) {
@@ -124,6 +124,8 @@ function App() {
         return <CreateQuest onBack={() => handleNavigate("dashboard")} />
       case "profile":
         return <Profile />
+      case "questpage":
+        return <QuestsPage onSelectQuest={handleSelectWorkspace} />
       default:
         return <NotFound onNavigate={handleNavigate} />
     }
@@ -145,4 +147,4 @@ function App() {
   )
 }
 
-export default App;
+export default App

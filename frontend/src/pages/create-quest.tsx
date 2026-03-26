@@ -28,6 +28,7 @@ import { formatTokens, cn } from "@/lib/utils"
 const step1Schema = z.object({
   name: z.string().min(1, "Quest name is required").max(64, "Max 64 characters"),
   description: z.string().min(1, "Description is required").max(2000, "Max 2000 characters"),
+  maxEnrollees: z.number().int().min(1, "Must be at least 1").optional().or(z.literal("")),
 })
 type Step1Values = z.infer<typeof step1Schema>
 
@@ -194,6 +195,27 @@ function Step1Form({
                 {descValue.length}/2000
               </span>
             </div>
+          </div>
+
+          {/* Max Enrollees (Optional) */}
+          <div>
+            <FormLabel>Enrollment Capacity (Optional)</FormLabel>
+            <input
+              {...register("maxEnrollees", {
+                setValueAs: v => (v === "" ? undefined : parseInt(v, 10)),
+              })}
+              type="number"
+              min="1"
+              placeholder="Unlimited"
+              className={cn(
+                "border-border bg-background w-full border-[2px] px-4 py-2.5 text-sm font-medium transition-shadow focus:shadow-[3px_3px_0_var(--color-border)] focus:outline-none",
+                errors.maxEnrollees && "border-destructive"
+              )}
+            />
+            <p className="mt-1 text-xs font-bold text-muted-foreground">
+              Leave empty for unlimited spots. Once set, only this many users can enroll.
+            </p>
+            <FieldError message={errors.maxEnrollees?.message} />
           </div>
         </div>
       </div>
@@ -428,10 +450,117 @@ function Step3Review({
   }
 
   const handleCreate = async () => {
-    setTxPhase("creating")
-    // Simulate quest creation transaction via Freighter
-    await new Promise(r => setTimeout(r, 2000))
-    setTxPhase("done")
+    if (!address) {
+      throw new Error("Wallet not connected")
+    }
+
+    await createTx.run(async () => {
+      try {
+        // Step 1: Create the quest on-chain
+        // TODO: Add VITE_USDC_TOKEN_ADDRESS to environment variables
+        const tokenAddress =
+          import.meta.env.VITE_USDC_TOKEN_ADDRESS ||
+          "CDLZFC3SYJYDZXTEVRXTHNKVYKKEFZQJ2HW4QGHZ3KIZZMJDJPTKJ7QG"
+        if (!tokenAddress) {
+          throw new Error("USDC token address not configured")
+        }
+
+        const questResult = await questClient.createQuest(
+          address,
+          step1Data.name,
+          step1Data.description,
+          "Education", // Education category
+          [], // Tags
+          tokenAddress,
+          Visibility.Public,
+          typeof step1Data.maxEnrollees === "number" ? step1Data.maxEnrollees : undefined
+        )
+
+        if (questResult.status !== "SUCCESS") {
+          throw new Error(`Quest creation failed: ${questResult.error}`)
+        }
+
+        // Extract quest ID from the result (this may need adjustment based on actual contract response)
+        // For now, we'll assume we can get the quest ID from the result or need to query it
+        let questId: number
+        try {
+          // Try to get the latest quest ID (assuming the new quest is the last one)
+          const questCount = await questClient.getQuestCount()
+          questId = questCount - 1 // New quest should be at index count-1
+        } catch (error) {
+          console.error("Failed to get quest ID:", error)
+          throw new Error("Failed to retrieve created quest ID")
+        }
+
+        // Step 2: Create milestones for the quest
+        const milestoneResults = []
+        const failedMilestones = []
+
+        for (let i = 0; i < step2Data.milestones.length; i++) {
+          const milestone = step2Data.milestones[i]
+          try {
+            const result = await milestoneClient.createMilestone(
+              address,
+              questId,
+              milestone.title,
+              milestone.description,
+              BigInt(Math.floor(milestone.rewardAmount * 1_000_000)) // Convert to USDC smallest unit (6 decimals)
+            )
+
+            if (result.status !== "SUCCESS") {
+              failedMilestones.push({
+                index: i,
+                title: milestone.title,
+                error: result.error || "Unknown transaction error",
+              })
+              milestoneResults.push({ index: i, status: "FAILED", result })
+            } else {
+              milestoneResults.push({ index: i, status: "SUCCESS", result })
+            }
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "Unknown error"
+            failedMilestones.push({
+              index: i,
+              title: milestone.title,
+              error: errorMessage,
+            })
+            milestoneResults.push({
+              index: i,
+              status: "FAILED",
+              error: errorMessage,
+            })
+          }
+        }
+
+        // Handle partial failure cases
+        if (failedMilestones.length > 0) {
+          const successCount = step2Data.milestones.length - failedMilestones.length
+          const errorMessages = failedMilestones
+            .map(f => `Milestone ${f.index + 1} ("${f.title}"): ${f.error}`)
+            .join("; ")
+
+          if (successCount === 0) {
+            // All milestones failed - treat as complete failure
+            throw new Error(
+              `Quest created successfully, but all milestone creations failed: ${errorMessages}`
+            )
+          } else {
+            // Some milestones failed - partial success with detailed error
+            throw new Error(
+              `Quest created successfully with ${successCount}/${step2Data.milestones.length} milestones. ` +
+                `Failed milestones: ${errorMessages}. ` +
+                `You may need to manually create the remaining milestones.`
+            )
+          }
+        }
+
+        return true
+      } catch (error) {
+        console.error("Quest creation error:", error)
+        throw error
+      }
+    })
+
     onComplete()
   }
 
@@ -582,7 +711,13 @@ function Step3Review({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function CreateQuest({ onBack }: CreateQuestProps) {
+const DEFAULT_STEP1: Step1Values = { name: "", description: "", maxEnrollees: "" }
+const DEFAULT_STEP2: Step2Values = {
+  milestones: [{ title: "", description: "", rewardAmount: 0 }],
+}
+
+export function CreateQuest() {
+  const navigate = useNavigate()
   const { connected, connect, loading } = useWallet()
   const [step, setStep] = useState<FormStep>(1)
 

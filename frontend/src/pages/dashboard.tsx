@@ -117,16 +117,14 @@ export function Dashboard() {
     userEarnings = 0n,
   } = dashboardData || {}
 
-  const filteredWorkspaces = quests
-    .filter(ws => {
-      if (filter === "owned") return !!address && ws.owner === address
-      if (filter === "enrolled") return !address || ws.owner !== address
-      return true
-    })
-    .filter(ws => {
-      if (showVerifiedOnly) return ws.verified
-      return true
-    })
+  const filteredWorkspaces = quests.filter(ws => {
+    if (filter === "owned") return !!address && ws.owner === address
+    if (filter === "enrolled") return !address || ws.owner !== address
+    return true
+  }).filter(ws => {
+    if (showVerifiedOnly) return ws.verified
+    return true
+  })
 
   const ownedCount = quests.filter((q: QuestInfo) => !!address && q.owner === address).length
   const enrolledCount = Math.max(0, quests.length - ownedCount)
@@ -301,9 +299,8 @@ export function Dashboard() {
               <div className="flex items-center gap-4">
                 <button
                   onClick={() => setShowVerifiedOnly(!showVerifiedOnly)}
-                  className={`border-border flex cursor-pointer items-center gap-2 border-[2px] px-4 py-2 text-xs font-black tracking-wider uppercase shadow-[3px_3px_0_var(--color-border)] transition-colors ${
-                    showVerifiedOnly ? "bg-primary" : "bg-background hover:bg-secondary"
-                  }`}
+                  className={`border-border flex cursor-pointer items-center gap-2 border-[2px] px-4 py-2 text-xs font-black tracking-wider uppercase transition-colors shadow-[3px_3px_0_var(--color-border)] ${showVerifiedOnly ? "bg-primary" : "bg-background hover:bg-secondary"
+                    }`}
                 >
                   <Check
                     className={`h-3.5 w-3.5 ${showVerifiedOnly ? "opacity-100" : "opacity-30"}`}
@@ -315,9 +312,8 @@ export function Dashboard() {
                     <button
                       key={f}
                       onClick={() => setFilter(f)}
-                      className={`border-border cursor-pointer border-r-[2px] px-4 py-2 text-xs font-black tracking-wider capitalize uppercase transition-colors last:border-r-0 ${
-                        filter === f ? "bg-primary" : "bg-background hover:bg-secondary"
-                      }`}
+                      className={`border-border cursor-pointer border-r-[2px] px-4 py-2 text-xs font-black tracking-wider capitalize uppercase transition-colors last:border-r-0 ${filter === f ? "bg-primary" : "bg-background hover:bg-secondary"
+                        }`}
                     >
                       {f}
                     </button>
@@ -514,9 +510,9 @@ export function Dashboard() {
                 action={
                   filter === "all" || filter === "owned"
                     ? {
-                        label: "Create Quest",
-                        onClick: () => navigate("/quest/create"),
-                      }
+                      label: "Create Quest",
+                      onClick: () => navigate("/quest/create"),
+                    }
                     : undefined
                 }
               />
